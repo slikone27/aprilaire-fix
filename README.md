@@ -1,6 +1,6 @@
-# Deprecated and merged to Home Assistant core
+# :warning: Deprecated and merged to Home Assistant core :warning:
 
-As of Home Assistant version 2023.3.0, this integration is now part of the Home Assistant core! The current version in Home Assistant core includes the main climate entity. Over the next several Home Assistant versions, the remaining entities will be implemented. **If you are using the sensors or air cleaning/fresh air features, it is recommended to continue using this repository until those features are merged.** Otherwise, you may remove this integration and re-add your device with the built-in integration.
+As of Home Assistant version 2023.3.0, this integration is now part of the Home Assistant core! Please do not use this integration any further, and instead use the built-in integration. This custom integration will not receive future support or updates.
 
 # aprilaire-ha
 
