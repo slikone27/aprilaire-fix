@@ -47,11 +47,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         coordinator = AprilaireCoordinator(
             self.hass, user_input[CONF_HOST], user_input[CONF_PORT]
         )
-        await coordinator.start_listen()
 
         async def ready_callback(ready: bool):
-            if not ready:
-                _LOGGER.error("Failed to wait for ready")
+            # No logging here; let the caller handle failure
+            return
 
         ready = await coordinator.wait_for_ready(ready_callback)
 
