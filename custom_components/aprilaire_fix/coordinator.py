@@ -81,34 +81,65 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def wait_for_ready(
         self, ready_callback: Callable[[bool], Awaitable[bool]]
     ) -> bool:
-        """Wait for the client to be ready."""
+        """Wait for the client to be ready.
 
-        if not self.data or Attribute.MAC_ADDRESS not in self.data:
-            data = await self.client.wait_for_response(
-                FunctionalDomain.IDENTIFICATION, 2, 30
-            )
+        Readiness is defined as successfully retrieving the MAC address / identity.
+        Some Aprilaire thermostats may NACK optional attributes or briefly disconnect
+        during startup; those conditions should not be treated as fatal.
+        """
 
-            if not data or Attribute.MAC_ADDRESS not in data:
-                _LOGGER.error("Missing MAC address, cannot create unique ID")
-                await ready_callback(False)
+        # Try multiple times to retrieve identity information
+        for attempt in range(3):
+            try:
+                # Ensure MAC address (unique identifier) is available
+                if not self.data or Attribute.MAC_ADDRESS not in self.data:
+                    data = await self.client.wait_for_response(
+                        FunctionalDomain.IDENTIFICATION, 2, 30
+                    )
 
-                return False
+                    if data and Attribute.MAC_ADDRESS in data:
+                        self.async_set_updated_data(data)
+                    else:
+                        _LOGGER.debug(
+                            "Attempt %s: MAC address not yet available", attempt + 1
+                        )
+                        continue
 
-        if not self.data or Attribute.NAME not in self.data:
-            await self.client.wait_for_response(FunctionalDomain.IDENTIFICATION, 4, 30)
+                # Optional attributes: request but do not fail if unavailable
+                if not self.data or Attribute.NAME not in self.data:
+                    await self.client.wait_for_response(
+                        FunctionalDomain.IDENTIFICATION, 4, 30
+                    )
 
-        if not self.data or Attribute.THERMOSTAT_MODES not in self.data:
-            await self.client.wait_for_response(FunctionalDomain.CONTROL, 7, 30)
+                if not self.data or Attribute.THERMOSTAT_MODES not in self.data:
+                    await self.client.wait_for_response(
+                        FunctionalDomain.CONTROL, 7, 30
+                    )
 
-        if (
-            not self.data
-            or Attribute.INDOOR_TEMPERATURE_CONTROLLING_SENSOR_STATUS not in self.data
-        ):
-            await self.client.wait_for_response(FunctionalDomain.SENSORS, 2, 30)
+                if (
+                    not self.data
+                    or Attribute.INDOOR_TEMPERATURE_CONTROLLING_SENSOR_STATUS
+                    not in self.data
+                ):
+                    await self.client.wait_for_response(
+                        FunctionalDomain.SENSORS, 2, 30
+                    )
 
-        await ready_callback(True)
+                # If we reached here and have a MAC address, we are ready
+                if self.data and Attribute.MAC_ADDRESS in self.data:
+                    await ready_callback(True)
+                    return True
 
-        return True
+            except Exception as err:
+                _LOGGER.debug(
+                    "Attempt %s: exception while waiting for ready: %s",
+                    attempt + 1,
+                    err,
+                )
+
+        _LOGGER.error("Failed to retrieve MAC address after retries")
+        await ready_callback(False)
+        return False
 
     @property
     def device_name(self) -> str:
