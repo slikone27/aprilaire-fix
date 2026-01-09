@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-DOMAIN = "aprilaire"
+DOMAIN = "aprilaire_fix"
 
 FAN_CIRCULATE = "Circulate"
 
