@@ -1,4 +1,4 @@
-"""The Aprilaire coordinator"""
+"""The Aprilaire coordinator."""
 
 from __future__ import annotations
 
@@ -70,11 +70,11 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     device_id=device.id, **new_device_info  # type: ignore[misc]
                 )
 
-    async def start_listen(self):
+    async def start_listen(self) -> None:
         """Start listening for data."""
         await self.client.start_listen()
 
-    def stop_listen(self):
+    def stop_listen(self) -> None:
         """Stop listening for data."""
         self.client.stop_listen()
 
@@ -83,56 +83,32 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> bool:
         """Wait for the client to be ready.
 
-        Readiness is defined as successfully retrieving the MAC address / identity.
-        Some Aprilaire thermostats may NACK optional attributes or briefly disconnect
-        during startup; those conditions should not be treated as fatal.
+        For 88xx thermostats, some optional attributes may NACK during startup.
+        Define readiness strictly as: successfully retrieving the MAC address.
         """
 
-        # Try multiple times to retrieve identity information
-        for attempt in range(3):
+        for attempt in range(5):
             try:
-                # Ensure MAC address (unique identifier) is available
-                if not self.data or Attribute.MAC_ADDRESS not in self.data:
-                    data = await self.client.wait_for_response(
-                        FunctionalDomain.IDENTIFICATION, 2, 30
-                    )
+                # Request identity (domain 8, attribute 2) and expect the MAC address.
+                data = await self.client.wait_for_response(
+                    FunctionalDomain.IDENTIFICATION, 2, 30
+                )
 
-                    if data and Attribute.MAC_ADDRESS in data:
-                        self.async_set_updated_data(data)
-                    else:
-                        _LOGGER.debug(
-                            "Attempt %s: MAC address not yet available", attempt + 1
-                        )
-                        continue
+                if data:
+                    self.async_set_updated_data(data)
 
-                # Optional attributes: request but do not fail if unavailable
-                if not self.data or Attribute.NAME not in self.data:
-                    await self.client.wait_for_response(
-                        FunctionalDomain.IDENTIFICATION, 4, 30
-                    )
-
-                if not self.data or Attribute.THERMOSTAT_MODES not in self.data:
-                    await self.client.wait_for_response(
-                        FunctionalDomain.CONTROL, 7, 30
-                    )
-
-                if (
-                    not self.data
-                    or Attribute.INDOOR_TEMPERATURE_CONTROLLING_SENSOR_STATUS
-                    not in self.data
-                ):
-                    await self.client.wait_for_response(
-                        FunctionalDomain.SENSORS, 2, 30
-                    )
-
-                # If we reached here and have a MAC address, we are ready
                 if self.data and Attribute.MAC_ADDRESS in self.data:
                     await ready_callback(True)
                     return True
 
+                _LOGGER.debug(
+                    "Attempt %s: identity response did not include MAC yet",
+                    attempt + 1,
+                )
+
             except Exception as err:
                 _LOGGER.debug(
-                    "Attempt %s: exception while waiting for ready: %s",
+                    "Attempt %s: exception while waiting for identity/MAC: %s",
                     attempt + 1,
                     err,
                 )
@@ -144,12 +120,10 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def device_name(self) -> str:
         """Get the name of the thermostat."""
-
         return self.create_device_name(self.data)
 
-    def create_device_name(self, data: dict[str, Any]) -> str:
+    def create_device_name(self, data: dict[str, Any] | None) -> str:
         """Create the name of the thermostat."""
-
         name = None if data is None else data.get(Attribute.NAME)
 
         if name is None or len(name) == 0:
@@ -174,7 +148,7 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Get the device info for the thermostat."""
         return self.create_device_info(self.data)
 
-    def create_device_info(self, data: dict[str, Any]) -> DeviceInfo | None:
+    def create_device_info(self, data: dict[str, Any] | None) -> DeviceInfo | None:
         """Create the device info for the thermostat."""
 
         if data is None or Attribute.MAC_ADDRESS not in data:
