@@ -19,7 +19,7 @@ async def async_setup_entry(
 ) -> None:
     """Add binary sensors for passed config_entry in HA."""
 
-    coordinator: AprilaireCoordinator = hass.data[DOMAIN][config_entry.unique_id]
+    coordinator: AprilaireCoordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     entities = [
         AprilaireFanStatusSensor(coordinator),
