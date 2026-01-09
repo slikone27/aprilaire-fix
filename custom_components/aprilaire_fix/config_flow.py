@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -13,12 +14,11 @@ from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN
-from .coordinator import AprilaireCoordinator
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
-        vol.Required(CONF_PORT, default=7000): cv.port,
+        vol.Required(CONF_PORT, default=8000): cv.port,
     }
 )
 
@@ -44,23 +44,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {CONF_HOST: user_input[CONF_HOST], CONF_PORT: user_input[CONF_PORT]}
         )
 
-        coordinator = AprilaireCoordinator(
-            self.hass, user_input[CONF_HOST], user_input[CONF_PORT]
-        )
+        host = user_input[CONF_HOST]
+        port = user_input[CONF_PORT]
 
-        async def ready_callback(ready: bool):
-            # No logging here; let the caller handle failure
-            return
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout=5
+            )
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=STEP_USER_DATA_SCHEMA,
+                errors={"base": "connection_failed"},
+            )
 
-        ready = await coordinator.wait_for_ready(ready_callback)
-
-        coordinator.stop_listen()
-
-        if ready:
-            return self.async_create_entry(title="Aprilaire", data=user_input)
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
-            errors={"base": "connection_failed"},
-        )
+        return self.async_create_entry(title="Aprilaire", data=user_input)
