@@ -24,7 +24,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     port = entry.data.get(CONF_PORT)
 
     coordinator = AprilaireCoordinator(hass, host, port)  # type: ignore[arg-type]
-    await coordinator.start_listen()
+
+    # Do not start the long-lived listen loop until after the identity/MAC
+    # readiness handshake completes. Some thermostats NACK optional attributes
+    # during early startup, and the underlying client may probe those while
+    # listening, which can interfere with identity retrieval.
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
