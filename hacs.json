@@ -1,7 +1,7 @@
 {
-    "name": "Aprilaire",
-    "domains": [
-        "climate"
-    ],
-    "render_readme": true
+  "name": "Aprilaire Fix",
+  "content_in_root": false,
+  "domain": "aprilaire_fix",
+  "integration_type": "integration",
+  "render_readme": true
 }

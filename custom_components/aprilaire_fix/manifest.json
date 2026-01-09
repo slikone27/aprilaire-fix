@@ -1,0 +1,11 @@
+{
+  "domain": "aprilaire_fix",
+  "name": "Aprilaire (Fix)",
+  "config_flow": true,
+  "documentation": "https://github.com/slikone27/aprilaire-fix",
+  "issue_tracker": "https://github.com/slikone27/aprilaire-fix/issues",
+  "requirements": ["pyaprilaire==0.9.1"],
+  "codeowners": ["@slikone27"],
+  "iot_class": "local_push",
+  "version": "0.8.1"
+}
