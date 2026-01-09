@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -87,11 +88,21 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         Define readiness strictly as: successfully retrieving the MAC address.
         """
 
-        for attempt in range(5):
+        # Some thermostats are sensitive during the initial handshake and may
+        # briefly disconnect or NACK optional attributes. Be aggressive about
+        # reconnecting and focus only on retrieving identity/MAC.
+        for attempt in range(12):
             try:
+                # Force a clean session every attempt.
+                self.stop_listen()
+                await self.start_listen()
+
+                # Give the socket a brief moment to settle.
+                await asyncio.sleep(0.5)
+
                 # Request identity (domain 8, attribute 2) and expect the MAC address.
                 data = await self.client.wait_for_response(
-                    FunctionalDomain.IDENTIFICATION, 2, 30
+                    FunctionalDomain.IDENTIFICATION, 2, 10
                 )
 
                 if data:
