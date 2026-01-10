@@ -23,7 +23,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data.get(CONF_HOST)
     port = entry.data.get(CONF_PORT)
 
-    coordinator = AprilaireCoordinator(hass, host, port)  # type: ignore[arg-type]
+    if not host or not port:
+        raise ConfigEntryNotReady("Missing host/port for Aprilaire config entry")
+
+    _LOGGER.info("Setting up Aprilaire (Fix) entry_id=%s host=%s port=%s", entry.entry_id, host, port)
+
+    coordinator = AprilaireCoordinator(hass, host, port)
 
     # Do not start the long-lived listen loop until after the identity/MAC
     # readiness handshake completes. Some thermostats NACK optional attributes
@@ -32,8 +37,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
+    did_forward = False
+
     async def ready_callback(ready: bool):
-        if ready:
+        nonlocal did_forward
+        if ready and not did_forward:
+            did_forward = True
             await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
             async def _async_close(_: Event) -> None:
@@ -43,6 +52,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_close)
             )
         else:
+            _LOGGER.warning(
+                "Aprilaire (Fix) entry_id=%s not ready yet; will retry", entry.entry_id
+            )
             coordinator.stop_listen()
             raise ConfigEntryNotReady("Aprilaire thermostat not ready")
 
@@ -53,6 +65,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Propagate so Home Assistant will retry setup.
         raise
     except Exception as err:
+        _LOGGER.exception(
+            "Aprilaire (Fix) setup failed for entry_id=%s (%s:%s)", entry.entry_id, host, port
+        )
         coordinator.stop_listen()
         raise ConfigEntryNotReady(f"Aprilaire setup failed: {err}") from err
 

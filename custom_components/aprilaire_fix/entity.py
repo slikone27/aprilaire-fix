@@ -32,18 +32,24 @@ class BaseAprilaireEntity(CoordinatorEntity[AprilaireCoordinator], Entity):
     def _update_available(self):
         """Update the entity availability."""
 
-        connected: bool = self.coordinator.data.get(
-            Attribute.CONNECTED, None
-        ) or self.coordinator.data.get(Attribute.RECONNECTING, None)
+        data = self.coordinator.data or {}
 
-        stopped: bool = self.coordinator.data.get(Attribute.STOPPED, None)
+        # Prefer the client connection state; fall back to protocol flags if present.
+        connected: bool = (
+            bool(getattr(self.coordinator.client, "connected", False))
+            or bool(data.get(Attribute.CONNECTED))
+            or bool(data.get(Attribute.RECONNECTING))
+        )
 
-        if stopped or not connected:
-            self._attr_available = False
-        else:
-            self._attr_available = (
-                self.coordinator.data.get(Attribute.MAC_ADDRESS, None) is not None
-            )
+        stopped: bool = bool(data.get(Attribute.STOPPED))
+
+        # Entity is available when we have an active connection and the coordinator
+        # has successfully updated at least once.
+        self._attr_available = (
+            not stopped
+            and connected
+            and bool(getattr(self.coordinator, "last_update_success", False))
+        )
 
     @property
     def available(self) -> bool:
@@ -53,11 +59,13 @@ class BaseAprilaireEntity(CoordinatorEntity[AprilaireCoordinator], Entity):
     @property
     def unique_id(self) -> str | None:
         """Return a unique ID."""
-        return slugify(
-            self.coordinator.data[Attribute.MAC_ADDRESS].replace(":", "_")
-            + "_"
-            + self.name
-        )
+        data = self.coordinator.data or {}
+        mac = data.get(Attribute.MAC_ADDRESS)
+
+        # Prefer MAC-based unique_id, but fall back to host/port until MAC is known.
+        base = mac.replace(":", "_") if mac else f"{self.coordinator.host}_{self.coordinator.port}"
+
+        return slugify(base + "_" + (self.name or "aprilaire"))
 
     @property
     def extra_state_attributes(self):
