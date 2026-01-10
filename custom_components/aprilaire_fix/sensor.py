@@ -65,43 +65,16 @@ async def async_setup_entry(
 
     coordinator: AprilaireCoordinator = hass.data[DOMAIN][config_entry.entry_id]
 
-    entities = []
-
-    if (
-        coordinator.data.get(Attribute.INDOOR_HUMIDITY_CONTROLLING_SENSOR_STATUS, 3)
-        != 3
-    ):
-        entities.append(AprilaireIndoorHumidityControllingSensor(coordinator))
-
-    if (
-        coordinator.data.get(Attribute.OUTDOOR_HUMIDITY_CONTROLLING_SENSOR_STATUS, 3)
-        != 3
-    ):
-        entities.append(AprilaireOutdoorHumidityControllingSensor(coordinator))
-
-    if (
-        coordinator.data.get(Attribute.INDOOR_TEMPERATURE_CONTROLLING_SENSOR_STATUS, 3)
-        != 3
-    ):
-        entities.append(AprilaireIndoorTemperatureControllingSensor(coordinator))
-
-    if (
-        coordinator.data.get(Attribute.OUTDOOR_TEMPERATURE_CONTROLLING_SENSOR_STATUS, 3)
-        != 3
-    ):
-        entities.append(AprilaireOutdoorTemperatureControllingSensor(coordinator))
-
-    if coordinator.data.get(Attribute.DEHUMIDIFICATION_AVAILABLE) == 1:
-        entities.append(AprilaireDehumidificationStatusSensor(coordinator))
-
-    if coordinator.data.get(Attribute.HUMIDIFICATION_AVAILABLE) in [1, 2]:
-        entities.append(AprilaireHumidificationStatusSensor(coordinator))
-
-    if coordinator.data.get(Attribute.VENTILATION_AVAILABLE) == 1:
-        entities.append(AprilaireVentilationStatusSensor(coordinator))
-
-    if coordinator.data.get(Attribute.AIR_CLEANING_AVAILABLE) == 1:
-        entities.append(AprilaireAirCleaningStatusSensor(coordinator))
+    entities = [
+        AprilaireIndoorHumidityControllingSensor(coordinator),
+        AprilaireOutdoorHumidityControllingSensor(coordinator),
+        AprilaireIndoorTemperatureControllingSensor(coordinator),
+        AprilaireOutdoorTemperatureControllingSensor(coordinator),
+        AprilaireDehumidificationStatusSensor(coordinator),
+        AprilaireHumidificationStatusSensor(coordinator),
+        AprilaireVentilationStatusSensor(coordinator),
+        AprilaireAirCleaningStatusSensor(coordinator),
+    ]
 
     async_add_entities(entities)
 
@@ -304,10 +277,7 @@ class AprilaireDehumidificationStatusSensor(BaseAprilaireEntity, SensorEntity):
     @property
     def available(self):
         """Return True if entity is available."""
-        return (
-            super().available
-            and Attribute.DEHUMIDIFICATION_STATUS in self.coordinator.data
-        )
+        return super().available
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
@@ -333,10 +303,7 @@ class AprilaireHumidificationStatusSensor(BaseAprilaireEntity, SensorEntity):
     @property
     def available(self):
         """Return True if entity is available."""
-        return (
-            super().available
-            and Attribute.HUMIDIFICATION_STATUS in self.coordinator.data
-        )
+        return super().available
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
@@ -362,9 +329,7 @@ class AprilaireVentilationStatusSensor(BaseAprilaireEntity, SensorEntity):
     @property
     def available(self):
         """Return True if entity is available."""
-        return (
-            super().available and Attribute.VENTILATION_STATUS in self.coordinator.data
-        )
+        return super().available
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
@@ -386,9 +351,7 @@ class AprilaireAirCleaningStatusSensor(BaseAprilaireEntity, SensorEntity):
     @property
     def available(self):
         """Return True if entity is available."""
-        return (
-            super().available and Attribute.AIR_CLEANING_STATUS in self.coordinator.data
-        )
+        return super().available
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:

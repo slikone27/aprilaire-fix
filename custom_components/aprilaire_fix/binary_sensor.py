@@ -36,7 +36,7 @@ class AprilaireFanStatusSensor(BaseAprilaireEntity, BinarySensorEntity):
     @property
     def available(self):
         """Get entity availability"""
-        return super().available and Attribute.FAN_STATUS in self.coordinator.data
+        return super().available
 
     @property
     def is_on(self) -> bool | None:
