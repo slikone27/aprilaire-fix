@@ -33,6 +33,9 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             name=DOMAIN,
         )
 
+        self.host = host
+        self.port = port
+
         self.client = pyaprilaire.client.AprilaireClient(
             host,
             port,
@@ -84,49 +87,61 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> bool:
         """Wait for the client to be ready.
 
-        For 88xx thermostats, some optional attributes may NACK during startup.
-        Define readiness strictly as: successfully retrieving the MAC address.
+        Some thermostats may not respond to identity (8,2) immediately.
+        We treat readiness as: listener started; proceed even if MAC is not yet known.
         """
 
-        # Some thermostats are sensitive during the initial handshake and may
-        # briefly disconnect or NACK optional attributes. Be aggressive about
-        # reconnecting and focus only on retrieving identity/MAC.
-        for attempt in range(12):
+        try:
+            # Start a single listening session.
+            await self.start_listen()
+        except Exception as err:
+            _LOGGER.warning(
+                "Failed to start listen during readiness (host=%s port=%s): %s",
+                self.host,
+                self.port,
+                err,
+            )
+            # Continue; the client may reconnect internally.
+
+        # Give the socket a brief moment to settle.
+        await asyncio.sleep(0.5)
+
+        # Try identity/MAC a small number of times without reconnect thrash.
+        for attempt in range(2):
             try:
-                # Force a clean session every attempt.
-                self.stop_listen()
-                await self.start_listen()
-
-                # Give the socket a brief moment to settle.
-                await asyncio.sleep(0.5)
-
-                # Request identity (domain 8, attribute 2) and expect the MAC address.
                 data = await self.client.wait_for_response(
-                    FunctionalDomain.IDENTIFICATION, 2, 10
+                    FunctionalDomain.IDENTIFICATION, 2, 5
                 )
 
                 if data:
                     self.async_set_updated_data(data)
 
-                if self.data and Attribute.MAC_ADDRESS in self.data:
+                if (self.data or {}).get(Attribute.MAC_ADDRESS):
                     await ready_callback(True)
                     return True
 
                 _LOGGER.debug(
-                    "Attempt %s: identity response did not include MAC yet",
+                    "Attempt %s: identity response did not include MAC yet (host=%s)",
                     attempt + 1,
+                    self.host,
                 )
-
             except Exception as err:
                 _LOGGER.debug(
-                    "Attempt %s: exception while waiting for identity/MAC: %s",
+                    "Attempt %s: exception while waiting for identity/MAC (host=%s): %s",
                     attempt + 1,
+                    self.host,
                     err,
                 )
 
-        _LOGGER.error("Failed to retrieve MAC address after retries")
-        await ready_callback(False)
-        return False
+            await asyncio.sleep(0.5)
+
+        _LOGGER.info(
+            "Proceeding without MAC (host=%s port=%s)",
+            self.host,
+            self.port,
+        )
+        await ready_callback(True)
+        return True
 
     @property
     def device_name(self) -> str:
@@ -162,15 +177,29 @@ class AprilaireCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def create_device_info(self, data: dict[str, Any] | None) -> DeviceInfo | None:
         """Create the device info for the thermostat."""
 
-        if data is None or Attribute.MAC_ADDRESS not in data:
-            return None
+        if data is None:
+            identifier = f"{self.host}:{self.port}"
+            return DeviceInfo(
+                identifiers={(DOMAIN, identifier)},
+                name=self.create_device_name(data),
+                manufacturer="Aprilaire",
+            )
 
-        device_info = DeviceInfo(
-            identifiers={(DOMAIN, data[Attribute.MAC_ADDRESS])},
-            name=self.create_device_name(data),
-            manufacturer="Aprilaire",
-            connections={(dr.CONNECTION_NETWORK_MAC, data[Attribute.MAC_ADDRESS])},
-        )
+        mac = data.get(Attribute.MAC_ADDRESS)
+        if mac is None:
+            identifier = f"{self.host}:{self.port}"
+            device_info = DeviceInfo(
+                identifiers={(DOMAIN, identifier)},
+                name=self.create_device_name(data),
+                manufacturer="Aprilaire",
+            )
+        else:
+            device_info = DeviceInfo(
+                identifiers={(DOMAIN, mac)},
+                name=self.create_device_name(data),
+                manufacturer="Aprilaire",
+                connections={(dr.CONNECTION_NETWORK_MAC, mac)},
+            )
 
         model_number = data.get(Attribute.MODEL_NUMBER)
         if model_number is not None:
