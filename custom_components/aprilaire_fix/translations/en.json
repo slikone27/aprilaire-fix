@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "data": {
-          "host": "[%key:common::config_flow::data::host%]",
+          "host": "Host (IP address)",
           "port": "Port (usually 7000 or 8000)"
         }
       }
